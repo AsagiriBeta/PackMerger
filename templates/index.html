@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft 资源包合并器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            background: #eef1ff;
+            border-color: #764ba2;
+        }
+
+        .upload-area.drag-over {
+            background: #e0e7ff;
+            border-color: #667eea;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(86, 171, 47, 0.4);
+        }
+
+        .pack-list {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .pack-item {
+            background: #f8f9ff;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            cursor: move;
+            transition: all 0.3s;
+        }
+
+        .pack-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .pack-item.dragging {
+            opacity: 0.5;
+        }
+
+        .pack-name {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .pack-info {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .pack-priority {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            margin-right: 10px;
+        }
+
+        .options-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e7ff;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 30px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            display: none;
+            padding: 20px;
+            background: #e8f5e9;
+            border-radius: 10px;
+            border-left: 4px solid #56ab2f;
+            margin-top: 20px;
+        }
+
+        .result h3 {
+            color: #2e7d32;
+            margin-bottom: 15px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .error {
+            display: none;
+            padding: 20px;
+            background: #ffebee;
+            border-radius: 10px;
+            border-left: 4px solid #f44336;
+            margin-top: 20px;
+            color: #c62828;
+        }
+
+        .hint {
+            background: #fff9e6;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin-top: 20px;
+            font-size: 0.95em;
+            color: #664d00;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .button-group button {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⛏️ Minecraft 资源包合并器</h1>
+            <p>轻松合并多个Minecraft资源包</p>
+        </div>
+
+        <div class="content">
+            <!-- 上传区域 -->
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📦</div>
+                <h2>点击或拖拽上传资源包</h2>
+                <p>支持 .zip 格式的资源包文件</p>
+                <p style="margin-top: 10px; color: #666;">可以一次选择多个文件</p>
+                <input type="file" id="fileInput" multiple accept=".zip">
+            </div>
+
+            <!-- 加载动画 -->
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>正在处理...</p>
+            </div>
+
+            <!-- 错误信息 -->
+            <div class="error" id="error"></div>
+
+            <!-- 资源包列表 -->
+            <div class="pack-list" id="packList">
+                <h3>📋 已上传的资源包</h3>
+                <div class="hint">
+                    💡 拖动资源包可以调整优先级（从上到下：低优先级 → 高优先级）
+                </div>
+                <div id="packs"></div>
+            </div>
+
+            <!-- 合并选项 -->
+            <div class="options-section" id="options">
+                <h3>⚙️ 合并选项</h3>
+
+                <div class="form-group">
+                    <label for="outputName">输出文件名</label>
+                    <input type="text" id="outputName" value="merged_pack" placeholder="merged_pack">
+                </div>
+
+                <div class="form-group">
+                    <label for="description">资源包描述（可选）</label>
+                    <textarea id="description" rows="3" placeholder="自动生成描述..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="packFormat">Pack Format（可选，留空自动检测）</label>
+                    <input type="number" id="packFormat" placeholder="例如: 15">
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="createZip" checked>
+                        <label for="createZip">创建 ZIP 文件</label>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-success" onclick="mergePacks()">
+                        🔨 开始合并
+                    </button>
+                    <button class="btn btn-primary" onclick="reset()">
+                        🔄 重新开始
+                    </button>
+                </div>
+            </div>
+
+            <!-- 结果 -->
+            <div class="result" id="result">
+                <h3>✅ 合并成功！</h3>
+                <div class="stats" id="stats"></div>
+                <button class="btn btn-success" id="downloadBtn" style="width: 100%; margin-top: 20px;">
+                    ⬇️ 下载合并后的资源包
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = null;
+        let uploadedPacks = [];
+
+        // 文件上传处理
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+
+        async function handleFiles(files) {
+            if (files.length === 0) return;
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append('packs', file);
+            }
+
+            showLoading();
+            hideError();
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || '上传失败');
+                }
+
+                sessionId = data.session_id;
+                uploadedPacks = data.packs;
+                displayPacks();
+                hideLoading();
+                document.getElementById('packList').style.display = 'block';
+                document.getElementById('options').style.display = 'block';
+                uploadArea.style.display = 'none';
+            } catch (error) {
+                hideLoading();
+                showError(error.message);
+            }
+        }
+
+        function displayPacks() {
+            const packsContainer = document.getElementById('packs');
+            packsContainer.innerHTML = '';
+
+            uploadedPacks.forEach((pack, index) => {
+                const packDiv = document.createElement('div');
+                packDiv.className = 'pack-item';
+                packDiv.draggable = true;
+                packDiv.dataset.index = index;
+
+                packDiv.innerHTML = `
+                    <span class="pack-priority">优先级 ${index + 1}</span>
+                    <div class="pack-name">${pack.name}</div>
+                    <div class="pack-info">
+                        Pack Format: ${pack.pack_format || 'Unknown'} |
+                        ${pack.has_png ? '✅ 包含 pack.png' : '❌ 无 pack.png'}
+                    </div>
+                `;
+
+                packDiv.addEventListener('dragstart', handleDragStart);
+                packDiv.addEventListener('dragover', handleDragOver);
+                packDiv.addEventListener('drop', handleDrop);
+                packDiv.addEventListener('dragend', handleDragEnd);
+
+                packsContainer.appendChild(packDiv);
+            });
+        }
+
+        let draggedElement = null;
+
+        function handleDragStart(e) {
+            draggedElement = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            if (draggedElement !== this) {
+                const draggedIndex = parseInt(draggedElement.dataset.index);
+                const targetIndex = parseInt(this.dataset.index);
+
+                const temp = uploadedPacks[draggedIndex];
+                uploadedPacks.splice(draggedIndex, 1);
+                uploadedPacks.splice(targetIndex, 0, temp);
+
+                displayPacks();
+            }
+            return false;
+        }
+
+        function handleDragEnd() {
+            this.classList.remove('dragging');
+        }
+
+        async function mergePacks() {
+            if (!sessionId || uploadedPacks.length === 0) {
+                showError('请先上传资源包');
+                return;
+            }
+
+            const outputName = document.getElementById('outputName').value || 'merged_pack';
+            const description = document.getElementById('description').value;
+            const packFormat = document.getElementById('packFormat').value;
+            const createZip = document.getElementById('createZip').checked;
+
+            const packOrder = uploadedPacks.map(p => p.name);
+
+            showLoading();
+            hideError();
+            document.getElementById('result').style.display = 'none';
+
+            try {
+                const response = await fetch('/merge', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        pack_order: packOrder,
+                        output_name: outputName,
+                        description: description,
+                        pack_format: packFormat ? parseInt(packFormat) : null,
+                        create_zip: createZip
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || '合并失败');
+                }
+
+                hideLoading();
+                displayResult(data);
+            } catch (error) {
+                hideLoading();
+                showError(error.message);
+            }
+        }
+
+        function displayResult(data) {
+            const statsContainer = document.getElementById('stats');
+            statsContainer.innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-value">${data.stats.copied}</div>
+                    <div class="stat-label">新文件</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${data.stats.overwritten}</div>
+                    <div class="stat-label">覆盖文件</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${data.stats.merged_json}</div>
+                    <div class="stat-label">JSON合并</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">${data.stats.skipped}</div>
+                    <div class="stat-label">跳过文件</div>
+                </div>
+            `;
+
+            const downloadBtn = document.getElementById('downloadBtn');
+            if (data.download_url) {
+                downloadBtn.onclick = () => window.location.href = data.download_url;
+                downloadBtn.style.display = 'block';
+            } else {
+                downloadBtn.style.display = 'none';
+            }
+
+            document.getElementById('result').style.display = 'block';
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function reset() {
+            sessionId = null;
+            uploadedPacks = [];
+            document.getElementById('packList').style.display = 'none';
+            document.getElementById('options').style.display = 'none';
+            document.getElementById('result').style.display = 'none';
+            document.getElementById('uploadArea').style.display = 'block';
+            document.getElementById('fileInput').value = '';
+            hideError();
+        }
+    </script>
+</body>
+</html>
+
