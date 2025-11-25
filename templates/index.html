@@ -352,6 +352,17 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="customIcon">自定义资源包图标（可选）</label>
+                    <input type="file" id="customIcon" accept="image/*" style="padding: 8px;">
+                    <div style="margin-top: 8px; font-size: 0.9em; color: #666;">
+                        💡 上传图片将自动处理成 128x128 的方形 PNG 图标
+                    </div>
+                    <div id="iconPreview" style="margin-top: 10px; display: none;">
+                        <img id="iconPreviewImg" style="max-width: 128px; max-height: 128px; border: 2px solid #667eea; border-radius: 8px;">
+                    </div>
+                </div>
+
+                <div class="form-group">
                     <div class="checkbox-group">
                         <input type="checkbox" id="createZip" checked>
                         <label for="createZip">创建 ZIP 文件</label>
@@ -406,6 +417,25 @@
 
         fileInput.addEventListener('change', (e) => {
             handleFiles(e.target.files);
+        });
+
+        // Custom icon preview
+        const customIconInput = document.getElementById('customIcon');
+        const iconPreview = document.getElementById('iconPreview');
+        const iconPreviewImg = document.getElementById('iconPreviewImg');
+
+        customIconInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    iconPreviewImg.src = event.target.result;
+                    iconPreview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                iconPreview.style.display = 'none';
+            }
         });
 
         async function handleFiles(files) {
@@ -515,6 +545,7 @@
             const description = document.getElementById('description').value;
             const packFormat = document.getElementById('packFormat').value;
             const createZip = document.getElementById('createZip').checked;
+            const customIconFile = document.getElementById('customIcon').files[0];
 
             const packOrder = uploadedPacks.map(p => p.name);
 
@@ -523,20 +554,40 @@
             document.getElementById('result').style.display = 'none';
 
             try {
-                const response = await fetch('/merge', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        session_id: sessionId,
-                        pack_order: packOrder,
-                        output_name: outputName,
-                        description: description,
-                        pack_format: packFormat ? parseInt(packFormat) : null,
-                        create_zip: createZip
-                    })
-                });
+                // Use FormData if custom icon is provided, otherwise use JSON
+                let response;
+                if (customIconFile) {
+                    const formData = new FormData();
+                    formData.append('session_id', sessionId);
+                    formData.append('pack_order', JSON.stringify(packOrder));
+                    formData.append('output_name', outputName);
+                    formData.append('description', description);
+                    if (packFormat) {
+                        formData.append('pack_format', packFormat);
+                    }
+                    formData.append('create_zip', createZip);
+                    formData.append('custom_icon', customIconFile);
+
+                    response = await fetch('/merge', {
+                        method: 'POST',
+                        body: formData
+                    });
+                } else {
+                    response = await fetch('/merge', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            pack_order: packOrder,
+                            output_name: outputName,
+                            description: description,
+                            pack_format: packFormat ? parseInt(packFormat) : null,
+                            create_zip: createZip
+                        })
+                    });
+                }
 
                 const data = await response.json();
 
@@ -610,6 +661,8 @@
             document.getElementById('result').style.display = 'none';
             document.getElementById('uploadArea').style.display = 'block';
             document.getElementById('fileInput').value = '';
+            document.getElementById('customIcon').value = '';
+            document.getElementById('iconPreview').style.display = 'none';
             hideError();
         }
     </script>

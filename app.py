@@ -7,6 +7,7 @@ from flask import Flask, render_template, request, send_file, jsonify, url_for
 import shutil
 from pathlib import Path
 from werkzeug.utils import secure_filename
+from PIL import Image
 
 # Import merge functionality from merge_packs.py
 from merge_packs import (
@@ -25,10 +26,49 @@ app.config['UPLOAD_FOLDER'].mkdir(exist_ok=True)
 app.config['OUTPUT_FOLDER'].mkdir(exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'zip'}
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
 
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def allowed_image_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
+
+
+def process_custom_icon(image_file, output_path: Path):
+    """
+    Process uploaded image to create a 128x128 PNG pack icon
+    """
+    try:
+        # Open the image
+        img = Image.open(image_file)
+
+        # Convert to RGBA if necessary
+        if img.mode != 'RGBA':
+            img = img.convert('RGBA')
+
+        # Resize to 128x128 using high-quality resampling
+        # First, crop to square if not already
+        width, height = img.size
+        if width != height:
+            # Crop to center square
+            size = min(width, height)
+            left = (width - size) // 2
+            top = (height - size) // 2
+            img = img.crop((left, top, left + size, top + size))
+
+        # Resize to 128x128
+        img = img.resize((128, 128), Image.Resampling.LANCZOS)
+
+        # Save as PNG
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        img.save(output_path, 'PNG', optimize=True)
+        return True
+    except Exception as e:
+        print(f"Failed to process custom icon: {e}")
+        return False
 
 
 def find_pack_in_directory(directory: Path, max_depth: int = 3) -> Path:
@@ -134,13 +174,30 @@ def upload_files():
 @app.route('/merge', methods=['POST'])
 def merge_packs():
     """执行资源包合并"""
-    data = request.json
+    # Check if this is a multipart form with custom icon
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        data = request.form.to_dict()
+        custom_icon_file = request.files.get('custom_icon')
+    else:
+        data = request.json
+        custom_icon_file = None
+
     session_id = data.get('session_id')
-    pack_order = data.get('pack_order', [])  # List of pack names in priority order
+    pack_order = data.get('pack_order')
+    if isinstance(pack_order, str):
+        import json
+        pack_order = json.loads(pack_order)
+    if pack_order is None:
+        pack_order = []
+
     output_name = data.get('output_name', 'merged_pack')
     description = data.get('description', '')
     pack_format = data.get('pack_format')
-    create_zip = data.get('create_zip', True)
+    if pack_format:
+        pack_format = int(pack_format)
+    create_zip = data.get('create_zip', 'true')
+    if isinstance(create_zip, str):
+        create_zip = create_zip.lower() == 'true'
 
     if not session_id:
         return jsonify({'error': '无效的会话ID'}), 400
@@ -200,6 +257,14 @@ def merge_packs():
             description_override=description if description else None,
         )
         merger.run()
+
+        # Process custom icon if provided
+        if custom_icon_file and custom_icon_file.filename and allowed_image_file(custom_icon_file.filename):
+            custom_icon_path = output_dir / 'pack.png'
+            if process_custom_icon(custom_icon_file, custom_icon_path):
+                print(f"Successfully processed custom icon: {custom_icon_file.filename}")
+            else:
+                print(f"Failed to process custom icon, using default")
 
         # Create zip if requested
         zip_path = None
