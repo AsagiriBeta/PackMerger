@@ -76,13 +76,23 @@ def extract_zip_pack(zip_path: Path, temp_dir: Path) -> Optional[Path]:
         extract_path = temp_dir / zip_path.stem
         with zipfile.ZipFile(zip_path, 'r') as zf:
             zf.extractall(extract_path)
-        # Check if it's valid
+        # Check if it's valid at root
         if is_valid_resource_pack(extract_path):
             return extract_path
-        # Sometimes the pack is nested in a subfolder
-        for child in extract_path.iterdir():
-            if child.is_dir() and is_valid_resource_pack(child):
-                return child
+        # Sometimes the pack is nested in a subfolder - search recursively up to 3 levels deep
+        def find_pack_recursive(base: Path, max_depth: int = 3, current_depth: int = 0) -> Optional[Path]:
+            if current_depth >= max_depth:
+                return None
+            for child in base.iterdir():
+                if child.is_dir():
+                    if is_valid_resource_pack(child):
+                        return child
+                    # Recurse into subdirectory
+                    found = find_pack_recursive(child, max_depth, current_depth + 1)
+                    if found:
+                        return found
+            return None
+        return find_pack_recursive(extract_path)
     except (zipfile.BadZipFile, OSError) as e:
         sys.stderr.write(f"WARNING: Failed to extract {zip_path}: {e}\n")
     return None

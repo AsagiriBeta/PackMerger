@@ -31,6 +31,31 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def find_pack_in_directory(directory: Path, max_depth: int = 3) -> Path:
+    """
+    Find a valid resource pack in a directory, searching recursively if needed.
+    Returns the path to the pack, or None if not found.
+    """
+    if is_valid_resource_pack(directory):
+        return directory
+
+    # Search recursively up to max_depth levels
+    def search_recursive(base: Path, current_depth: int = 0) -> Path:
+        if current_depth >= max_depth:
+            return None
+        for child in base.iterdir():
+            if child.is_dir():
+                if is_valid_resource_pack(child):
+                    return child
+                # Recurse into subdirectory
+                found = search_recursive(child, current_depth + 1)
+                if found:
+                    return found
+        return None
+
+    return search_recursive(directory)
+
+
 def cleanup_old_files(folder, max_age_hours=24):
     """清理超过指定时间的旧文件"""
     import time
@@ -128,11 +153,13 @@ def merge_packs():
     if not temp_dir.exists():
         return jsonify({'error': '没有找到上传的资源包'}), 404
 
-    # Detect all packs in temp directory
+    # Detect all packs in temp directory (including nested ones)
     detected_packs = []
     for item in temp_dir.iterdir():
-        if item.is_dir() and is_valid_resource_pack(item):
-            detected_packs.append(item)
+        if item.is_dir():
+            pack_path = find_pack_in_directory(item)
+            if pack_path:
+                detected_packs.append(pack_path)
 
     if not detected_packs:
         return jsonify({'error': '没有找到有效的资源包'}), 400
